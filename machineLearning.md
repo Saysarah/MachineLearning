@@ -1,0 +1,182 @@
+---
+output: html_document
+---
+Predicting Form of Weight Lifting Exercises - Machine Learning Course Project
+========================================================
+
+Script:machineLearning.Rmd was compiled and tested on a PC using R Version 3.1.1.
+Authored by Sarah Sayed
+
+This document was created as a project for the course [Machine Learning](https://www.coursera.org/course/predmachlearn) Coursera course.
+
+This script evaluates machine learning models predictions to predict one of five weight lifting exercises methodology using the Human Activity Recognition (HAR) wearable device data obtained from a study conducted by [Velloso, E. et all.](http://groupware.les.inf.puc-rio.br/public/papers/2013.Velloso.QAR-WLE.pdf)
+
+For the study, six healthy participants aged 20-28, were asked to perform one set of 10 repetitions of unilateral dumbbell biceps Curls using five different methods. (classe variables in the dataset.)
+
+
+A: exactly according to the specification
+B: throwing the elbows to the front (common error)
+C: lifting the dumbbell only halfway
+D: lowering the dumbbell only halfway
+E: throwing the hips to the front 
+
+Note that class A represents the exercise conducted with proper technique and class B-E represent common exercise mistakes made by novices.
+
+A prediction model was designed to predict class using the train dataset. Once the model was constructed test dataset values were used to predict classe values. Random Forest prediction model evaluated with the train() function was found to give the highest accuracy. 
+
+Note from the author: As the current computer used to compile this assignment is old (2007) the model was not compiled on Markdown. (eval = FALSE). 
+
+ 
+## Data Exploration
+
+Unzip and read the 'pml-training.csv' and 'pml-testing.csv' data files.
+
+
+```r
+#training Data
+myurl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+setInternet2(use = TRUE) ## Correction for windows device
+download.file(url=myurl, destfile="Training.csv")
+
+train <- read.csv("Training.csv", header = TRUE, stringsAsFactors = F, comment.char="", na.strings="NA")
+#dim(training) 19622 160
+
+#testing Data
+myurl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+download.file(url=myurl, destfile="Testing.csv")
+
+test <- read.csv("Testing.csv", header = TRUE, stringsAsFactors = F, comment.char="", na.strings="NA") 
+#dim(testing) 20 160
+```
+
+
+Out of the 160 variables in the dataset, remove unnecessary variables. The 'new window' variable is sparsely populated, furthermore this variable is not populated in the given test set data. Therefore it will be removed by subsetting off the rows of the dataset that the new_Window variable is = 'no'. 
+
+The nearZeroVar() function will be used to remove values with no variance (all the variables related to the new_window parameter).
+
+
+```r
+library(caret)
+library(Hmisc)
+
+train <- subset(train, new_window == "no") 
+## Remove values with where the new_widow variable = "Yes", since test set only has  new_window='no'
+
+nzv <- nearZeroVar(train, saveMetrics = TRUE) ## remove values with 0 variance (all the variables only related to the new_Window parameter)
+
+#where nzv is the predictor of the near zero varience
+nearZeroVar <- subset(nzv, nzv == "TRUE") ## dismissed due to near zero variance
+modelVariables <- subset(nzv, nzv == "FALSE") ## values to keep
+
+## Remove all the columns that contain zero variance
+train <- train[ , which(names(train) %in% rownames(modelVariables))]
+```
+
+
+Use the describe() function in the 'psych' package to visually inspect remaining columns and to remove columns that likely bear no relevancy in the prediction model (values that are hardly populated, or are not numeric), such as time and user name parameters.
+
+
+```r
+library(psych)
+
+
+train <- train[,-which(names(train) %in% c("X", "user_name", "raw_timestamp_part_1", "raw_timestamp_part_2", "cvtd_timestamp", "num_window"))] 
+
+# dim(train) 19216 53
+```
+
+Now the dataset has been reduced from containing 160 variables, to 53 (52 variables to predict the classe outcome.).
+
+Remove the same variables from the test set (identical process to training for later when we verify the model). (Note that the test dataset will not be used to construct the model, it will only be used for model verification.)
+
+```r
+library(psych)
+
+nzvTest <- nearZeroVar(test, saveMetrics = TRUE) ## remove values with 0 variance (all the variables only related to the new_Window parameter)
+
+#where nzv is the predictor of the near zero varience
+nearZeroVarTest <- subset(nzvTest, nzv == "TRUE") ## dismissed due to near zero variance
+modelVariablesTest <- subset(nzvTest, nzv == "FALSE") ## values to keep
+
+## Remove all the columns that contain zero variance
+test <- test[ , which(names(test) %in% rownames(modelVariablesTest))]
+
+test <- test[,-which(names(test) %in% c("X", "user_name", "raw_timestamp_part_1", "raw_timestamp_part_2", "cvtd_timestamp", "num_window"))] 
+
+#dim(test) 20 53
+```
+
+
+At this point we are ready to further subset the training data into test and training data to construct a model
+
+
+```r
+library(AppliedPredictiveModeling)
+
+# Further subset the training data into test and training data
+inTrain <- createDataPartition(train$classe, p=0.6, list = FALSE)
+training <- train[inTrain,] #dim(training) 11532 53
+testing <- train[-inTrain,] #dim(testing) 7684 53
+
+# Convert the output variable 'classe' into a factor variable
+training$classe <- as.factor(training$classe) 
+testing$classe <- as.factor(testing$classe)
+test$classe <- as.factor(test$classe)
+```
+
+Use the train() function to run the random forest model by setting method = 'rf' in the train function. the trControl parameter was set to reduce the time to process the function.
+
+The rpart model was also tried, however the model contained a low accuracy rate.
+
+```r
+library(caret)
+library(Hmisc)
+library(randomForest)
+
+set.seed(125)
+#Various models were tried setting the seed before each time
+
+rf.model <- randomForest(classe~. data = training, ntree = 3000, mtry = 27) 
+
+# Using the train function and preProcessing the data, cross validation done in trainControl
+model   <- train(classe ~., data = training, method = "rf", preProcess = c("center", "scale"), trControl = trainControl(method = "cv", number = 4, allowParallel = TRUE, verboseIter = TRUE))
+
+library(gbm)
+
+# using the Gradiant boosting algorithm
+gbm.model <- train(classe~.,training, method="gbm",verbose=FALSE, metric="Accuracy",rControl=trainControl(method="repeatedcv", number=8, repeats=4))
+
+# the model using the train() function was found to have the greatest accuracy rate.
+# print(model$finalModel) to display model summary
+```
+
+The train() function random forest model with pre-processing and cross validation  was 
+found to have the highest accuracy rate. 
+
+Finally the model can be tested using the predict() function. First the model is tested on the train dataset (testing). Finally it is tested on test to predict classe variables.
+The confusion matrix summarizes the overall accuracy of the model.
+
+```r
+pred.classe <- predict(gbm.mdl1,test)  confusionMatrix(pred.classe,test$classe)
+
+trainPred <- predict(model, testing) ## test the model on the split training dataset
+finalTest<- predict(model, test) ## Finally test the model on the given test dataset values
+
+table(testPred, test$classe) ##Observe predicted values
+confusionMatrix(rfPred, testData$classe)
+```
+
+
+Using the model above, the predicted output may be printed using the function below.
+
+```r
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(finalTest)
+```
