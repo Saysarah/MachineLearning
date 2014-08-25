@@ -22,16 +22,14 @@ E: throwing the hips to the front
 
 Note that class A represents the exercise conducted with proper technique and class B-E represent common exercise mistakes made by novices.
 
-A prediction model was designed to predict class using the train dataset. Once the model was constructed test dataset values were used to predict classe values. Random Forest prediction model evaluated with the train() function was found to give the highest accuracy. 
-
-Note from the author: As the current computer used to compile this assignment is old (2007) the model was not compiled on Markdown. (eval = FALSE). 
+A prediction model was designed to predict class using the train dataset. Once the model was constructed test dataset values were used to predict classe values. Random Forest prediction model evaluated with the train() function was found to give the highest accuracy (97%).  
 
  
 ## Data Exploration
 
 Unzip and read the 'pml-training.csv' and 'pml-testing.csv' data files.
 
-```{r, echo = TRUE, eval = FALSE}
+```{r, echo = TRUE, results = FALSE}
 
 #training Data
 myurl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
@@ -54,7 +52,7 @@ Out of the 160 variables in the dataset, remove unnecessary variables. The 'new 
 
 The nearZeroVar() function will be used to remove values with no variance (all the variables related to the new_window parameter).
 
-```{r, echo=TRUE, eval = FALSE}
+```{r, echo=TRUE, results = FALSE}
 library(caret)
 library(Hmisc)
 
@@ -74,20 +72,19 @@ train <- train[ , which(names(train) %in% rownames(modelVariables))]
 
 Use the describe() function in the 'psych' package to visually inspect remaining columns and to remove columns that likely bear no relevancy in the prediction model (values that are hardly populated, or are not numeric), such as time and user name parameters.
 
-```{r, echo = TRUE, eval = FALSE}
+```{r, echo = TRUE, results= FALSE}
 library(psych)
 
-
+#describe(train)
 train <- train[,-which(names(train) %in% c("X", "user_name", "raw_timestamp_part_1", "raw_timestamp_part_2", "cvtd_timestamp", "num_window"))] 
-
 # dim(train) 19216 53
 
 ```
 
 Now the dataset has been reduced from containing 160 variables, to 53 (52 variables to predict the classe outcome.).
 
-Remove the same variables from the test set (identical process to training for later when we verify the model). (Note that the test dataset will not be used to construct the model, it will only be used for model verification.)
-```{r, echo= TRUE, eval = FALSE}
+Remove the same variables from the test set (identical process to training for later when we verify the model). (Note that the test dataset will not be used to construct the model, it will only be used to predict the classes at the end.)
+```{r, echo= TRUE, results=FALSE}
 library(psych)
 
 nzvTest <- nearZeroVar(test, saveMetrics = TRUE) ## remove values with 0 variance (all the variables only related to the new_Window parameter)
@@ -107,7 +104,7 @@ test <- test[,-which(names(test) %in% c("X", "user_name", "raw_timestamp_part_1"
 
 At this point we are ready to further subset the training data into test and training data to construct a model
 
-```{r, echo= TRUE, eval=FALSE}
+```{r, echo= TRUE, results=FALSE}
 library(AppliedPredictiveModeling)
 
 # Further subset the training data into test and training data
@@ -115,57 +112,60 @@ inTrain <- createDataPartition(train$classe, p=0.6, list = FALSE)
 training <- train[inTrain,] #dim(training) 11532 53
 testing <- train[-inTrain,] #dim(testing) 7684 53
 
-# Convert the output variable 'classe' into a factor variable
-training$classe <- as.factor(training$classe) 
-testing$classe <- as.factor(testing$classe)
-test$classe <- as.factor(test$classe)
+#Convert the output variable 'classe' into a factor variable
+#training$classe <- as.factor(training$classe) 
+#testing$classe <- as.factor(testing$classe)
 ```
 
-Use the train() function to run the random forest model by setting method = 'rf' in the train function. the trControl parameter was set to reduce the time to process the function.
+Use the train() function to run the random forest model by setting method = 'rf' in the train function. the trControl parameter was set to reduce the time to process the function. Cross Validaton with four folds and preprocessing of the training set data (centering and scaling) was used.
 
-The rpart model was also tried, however the model contained a low accuracy rate.
-```{r model, echo = TRUE, eval=FALSE}
+Note other models, such as the 'rpart' model was also tried, however the other models contained a lower accuracy rate.
+```{r, echo = TRUE, results=FALSE}
 library(caret)
 library(Hmisc)
 library(randomForest)
 
 set.seed(125)
 #Various models were tried setting the seed before each time
-
-rf.model <- randomForest(classe~. data = training, ntree = 3000, mtry = 27) 
+training2 <- training[sample(nrow(training), 5000), ] # subset of the dataset 
 
 # Using the train function and preProcessing the data, cross validation done in trainControl
-model   <- train(classe ~., data = training, method = "rf", preProcess = c("center", "scale"), trControl = trainControl(method = "cv", number = 4, allowParallel = TRUE, verboseIter = TRUE))
+model   <- train(as.factor(classe) ~., data = training2, method = "rf", preProcess = c("center", "scale"), trControl = trainControl(method = "cv", number = 4, allowParallel = TRUE, verboseIter = TRUE))
 
-library(gbm)
+#rf.model <- randomForest(classe~. data = training2, ntree = 3000, mtry = 27) 
 
-# using the Gradiant boosting algorithm
-gbm.model <- train(classe~.,training, method="gbm",verbose=FALSE, metric="Accuracy",rControl=trainControl(method="repeatedcv", number=8, repeats=4))
+#library(gbm) #using the Gradiant boosting algorithm
+#gbm.model <- train(classe~.,training, method="gbm",verbose=FALSE, metric="Accuracy",rControl=trainControl(method="repeatedcv", number=8, repeats=4))
+```
 
-# the model using the train() function was found to have the greatest accuracy rate.
-# print(model$finalModel) to display model summary
+```{r, echo=TRUE}
+model # display model accuracy 96.6%, and other parameters
+print(model$finalModel) #display model summary
 ```
 
 The train() function random forest model with pre-processing and cross validation  was 
 found to have the highest accuracy rate. 
 
 Finally the model can be tested using the predict() function. First the model is tested on the train dataset (testing). Finally it is tested on test to predict classe variables.
-The confusion matrix summarizes the overall accuracy of the model.
-```{r, echo= TRUE, eval = FALSE}
+The confusion matrix summarizes the overall accuracy of the model. Note that the in sample error rate (for the training set) is less than the out-of-sample error rate (for the testing set). 
 
-pred.classe <- predict(gbm.mdl1,test)  confusionMatrix(pred.classe,test$classe)
+```{r, echo= TRUE}
+trainingPred<- predict(model, training) ## test the model on the training dataset (non-subsetted)
+#table(trainingPred, training$classe)
+confusionMatrix(trainingPred, training$classe)
 
-trainPred <- predict(model, testing) ## test the model on the split training dataset
-finalTest<- predict(model, test) ## Finally test the model on the given test dataset values
+trainPred <- predict(model, testing) ## test the model on the testing set (split from the train dataset)
+#table(trainPred, testing$classe) ##Observe predicted values
+confusionMatrix(trainPred, testing$classe)
 
-table(testPred, test$classe) ##Observe predicted values
-confusionMatrix(rfPred, testData$classe)
+finalTestPred<- predict(model, test) ## Finally test the model on test dataset values
 
 ```
 
 
 Using the model above, the predicted output may be printed using the function below.
-```{r, echo= TRUE, eval = FALSE}
+```{r, echo= TRUE}
+finalTestPred <- predict(model, test)
 
 pml_write_files = function(x){
   n = length(x)
@@ -175,6 +175,8 @@ pml_write_files = function(x){
   }
 }
 
-pml_write_files(finalTest)
+pml_write_files(finalTestPred)
+
+# finalTestPred ##prints out 20 problem_id_i.text files corresponding each class prediction.
 
 ```

@@ -22,9 +22,7 @@ E: throwing the hips to the front
 
 Note that class A represents the exercise conducted with proper technique and class B-E represent common exercise mistakes made by novices.
 
-A prediction model was designed to predict class using the train dataset. Once the model was constructed test dataset values were used to predict classe values. Random Forest prediction model evaluated with the train() function was found to give the highest accuracy. 
-
-Note from the author: As the current computer used to compile this assignment is old (2007) the model was not compiled on Markdown. (eval = FALSE). 
+A prediction model was designed to predict class using the train dataset. Once the model was constructed test dataset values were used to predict classe values. Random Forest prediction model evaluated with the train() function was found to give the highest accuracy (97%).  
 
  
 ## Data Exploration
@@ -79,15 +77,14 @@ Use the describe() function in the 'psych' package to visually inspect remaining
 ```r
 library(psych)
 
-
+#describe(train)
 train <- train[,-which(names(train) %in% c("X", "user_name", "raw_timestamp_part_1", "raw_timestamp_part_2", "cvtd_timestamp", "num_window"))] 
-
 # dim(train) 19216 53
 ```
 
 Now the dataset has been reduced from containing 160 variables, to 53 (52 variables to predict the classe outcome.).
 
-Remove the same variables from the test set (identical process to training for later when we verify the model). (Note that the test dataset will not be used to construct the model, it will only be used for model verification.)
+Remove the same variables from the test set (identical process to training for later when we verify the model). (Note that the test dataset will not be used to construct the model, it will only be used to predict the classes at the end.)
 
 ```r
 library(psych)
@@ -118,15 +115,14 @@ inTrain <- createDataPartition(train$classe, p=0.6, list = FALSE)
 training <- train[inTrain,] #dim(training) 11532 53
 testing <- train[-inTrain,] #dim(testing) 7684 53
 
-# Convert the output variable 'classe' into a factor variable
-training$classe <- as.factor(training$classe) 
-testing$classe <- as.factor(testing$classe)
-test$classe <- as.factor(test$classe)
+#Convert the output variable 'classe' into a factor variable
+#training$classe <- as.factor(training$classe) 
+#testing$classe <- as.factor(testing$classe)
 ```
 
-Use the train() function to run the random forest model by setting method = 'rf' in the train function. the trControl parameter was set to reduce the time to process the function.
+Use the train() function to run the random forest model by setting method = 'rf' in the train function. the trControl parameter was set to reduce the time to process the function. Cross Validaton with four folds and preprocessing of the training set data (centering and scaling) was used.
 
-The rpart model was also tried, however the model contained a low accuracy rate.
+Note other models, such as the 'rpart' model was also tried, however the other models contained a lower accuracy rate.
 
 ```r
 library(caret)
@@ -135,41 +131,196 @@ library(randomForest)
 
 set.seed(125)
 #Various models were tried setting the seed before each time
-
-rf.model <- randomForest(classe~. data = training, ntree = 3000, mtry = 27) 
+training2 <- training[sample(nrow(training), 5000), ] # subset of the dataset 
 
 # Using the train function and preProcessing the data, cross validation done in trainControl
-model   <- train(classe ~., data = training, method = "rf", preProcess = c("center", "scale"), trControl = trainControl(method = "cv", number = 4, allowParallel = TRUE, verboseIter = TRUE))
+model   <- train(as.factor(classe) ~., data = training2, method = "rf", preProcess = c("center", "scale"), trControl = trainControl(method = "cv", number = 4, allowParallel = TRUE, verboseIter = TRUE))
+```
 
-library(gbm)
+```
+## + Fold1: mtry= 2 
+## - Fold1: mtry= 2 
+## + Fold1: mtry=27 
+## - Fold1: mtry=27 
+## + Fold1: mtry=52 
+## - Fold1: mtry=52 
+## + Fold2: mtry= 2 
+## - Fold2: mtry= 2 
+## + Fold2: mtry=27 
+## - Fold2: mtry=27 
+## + Fold2: mtry=52 
+## - Fold2: mtry=52 
+## + Fold3: mtry= 2 
+## - Fold3: mtry= 2 
+## + Fold3: mtry=27 
+## - Fold3: mtry=27 
+## + Fold3: mtry=52 
+## - Fold3: mtry=52 
+## + Fold4: mtry= 2 
+## - Fold4: mtry= 2 
+## + Fold4: mtry=27 
+## - Fold4: mtry=27 
+## + Fold4: mtry=52 
+## - Fold4: mtry=52 
+## Aggregating results
+## Selecting tuning parameters
+## Fitting mtry = 27 on full training set
+```
 
-# using the Gradiant boosting algorithm
-gbm.model <- train(classe~.,training, method="gbm",verbose=FALSE, metric="Accuracy",rControl=trainControl(method="repeatedcv", number=8, repeats=4))
+```r
+#rf.model <- randomForest(classe~. data = training2, ntree = 3000, mtry = 27) 
 
-# the model using the train() function was found to have the greatest accuracy rate.
-# print(model$finalModel) to display model summary
+#library(gbm) #using the Gradiant boosting algorithm
+#gbm.model <- train(classe~.,training, method="gbm",verbose=FALSE, metric="Accuracy",rControl=trainControl(method="repeatedcv", number=8, repeats=4))
+```
+
+
+```r
+model # display model accuracy 96.6%, and other parameters
+```
+
+```
+## Random Forest 
+## 
+## 5000 samples
+##   52 predictors
+##    5 classes: 'A', 'B', 'C', 'D', 'E' 
+## 
+## Pre-processing: centered, scaled 
+## Resampling: Cross-Validated (4 fold) 
+## 
+## Summary of sample sizes: 3750, 3748, 3750, 3752 
+## 
+## Resampling results across tuning parameters:
+## 
+##   mtry  Accuracy  Kappa  Accuracy SD  Kappa SD
+##   2     1         1      0.006        0.008   
+##   30    1         1      0.002        0.003   
+##   50    1         1      0.003        0.003   
+## 
+## Accuracy was used to select the optimal model using  the largest value.
+## The final value used for the model was mtry = 27.
+```
+
+```r
+print(model$finalModel) #display model summary
+```
+
+```
+## 
+## Call:
+##  randomForest(x = x, y = y, mtry = param$mtry) 
+##                Type of random forest: classification
+##                      Number of trees: 500
+## No. of variables tried at each split: 27
+## 
+##         OOB estimate of  error rate: 2.4%
+## Confusion matrix:
+##      A   B   C   D   E class.error
+## A 1426   2   2   1   2    0.004885
+## B   25 933  17   4   0    0.046987
+## C    1  18 827   7   0    0.030481
+## D    0   2  17 786   3    0.027228
+## E    0   3   7   9 908    0.020496
 ```
 
 The train() function random forest model with pre-processing and cross validation  was 
 found to have the highest accuracy rate. 
 
 Finally the model can be tested using the predict() function. First the model is tested on the train dataset (testing). Finally it is tested on test to predict classe variables.
-The confusion matrix summarizes the overall accuracy of the model.
+The confusion matrix summarizes the overall accuracy of the model. Note that the in sample error rate (for the training set) is less than the out-of-sample error rate (for the testing set). 
+
 
 ```r
-pred.classe <- predict(gbm.mdl1,test)  confusionMatrix(pred.classe,test$classe)
+trainingPred<- predict(model, training) ## test the model on the training dataset (non-subsetted)
+#table(trainingPred, training$classe)
+confusionMatrix(trainingPred, training$classe)
+```
 
-trainPred <- predict(model, testing) ## test the model on the split training dataset
-finalTest<- predict(model, test) ## Finally test the model on the given test dataset values
+```
+## Confusion Matrix and Statistics
+## 
+##           Reference
+## Prediction    A    B    C    D    E
+##          A 3277   21    0    0    0
+##          B    4 2198   30    5    8
+##          C    2   10 1972   33    3
+##          D    0    1   10 1847    4
+##          E    0    1    0    4 2102
+## 
+## Overall Statistics
+##                                        
+##                Accuracy : 0.988        
+##                  95% CI : (0.986, 0.99)
+##     No Information Rate : 0.285        
+##     P-Value [Acc > NIR] : <2e-16       
+##                                        
+##                   Kappa : 0.985        
+##  Mcnemar's Test P-Value : NA           
+## 
+## Statistics by Class:
+## 
+##                      Class: A Class: B Class: C Class: D Class: E
+## Sensitivity             0.998    0.985    0.980    0.978    0.993
+## Specificity             0.997    0.995    0.995    0.998    0.999
+## Pos Pred Value          0.994    0.979    0.976    0.992    0.998
+## Neg Pred Value          0.999    0.996    0.996    0.996    0.998
+## Prevalence              0.285    0.193    0.174    0.164    0.184
+## Detection Rate          0.284    0.191    0.171    0.160    0.182
+## Detection Prevalence    0.286    0.195    0.175    0.161    0.183
+## Balanced Accuracy       0.998    0.990    0.988    0.988    0.996
+```
 
-table(testPred, test$classe) ##Observe predicted values
-confusionMatrix(rfPred, testData$classe)
+```r
+trainPred <- predict(model, testing) ## test the model on the testing set (split from the train dataset)
+#table(trainPred, testing$classe) ##Observe predicted values
+confusionMatrix(trainPred, testing$classe)
+```
+
+```
+## Confusion Matrix and Statistics
+## 
+##           Reference
+## Prediction    A    B    C    D    E
+##          A 2179   33    0    0    0
+##          B    3 1427   31    7    3
+##          C    3   13 1299   43    6
+##          D    2   11   10 1205    2
+##          E    1    3    0    3 1400
+## 
+## Overall Statistics
+##                                         
+##                Accuracy : 0.977         
+##                  95% CI : (0.974, 0.981)
+##     No Information Rate : 0.285         
+##     P-Value [Acc > NIR] : < 2e-16       
+##                                         
+##                   Kappa : 0.971         
+##  Mcnemar's Test P-Value : 2.61e-10      
+## 
+## Statistics by Class:
+## 
+##                      Class: A Class: B Class: C Class: D Class: E
+## Sensitivity             0.996    0.960    0.969    0.958    0.992
+## Specificity             0.994    0.993    0.990    0.996    0.999
+## Pos Pred Value          0.985    0.970    0.952    0.980    0.995
+## Neg Pred Value          0.998    0.990    0.994    0.992    0.998
+## Prevalence              0.285    0.194    0.174    0.164    0.184
+## Detection Rate          0.284    0.186    0.169    0.157    0.182
+## Detection Prevalence    0.288    0.191    0.178    0.160    0.183
+## Balanced Accuracy       0.995    0.976    0.980    0.977    0.996
+```
+
+```r
+finalTestPred<- predict(model, test) ## Finally test the model on test dataset values
 ```
 
 
 Using the model above, the predicted output may be printed using the function below.
 
 ```r
+finalTestPred <- predict(model, test)
+
 pml_write_files = function(x){
   n = length(x)
   for(i in 1:n){
@@ -178,5 +329,7 @@ pml_write_files = function(x){
   }
 }
 
-pml_write_files(finalTest)
+pml_write_files(finalTestPred)
+
+# finalTestPred ##prints out 20 problem_id_i.text files corresponding each class prediction.
 ```
